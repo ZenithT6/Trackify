@@ -5,7 +5,7 @@ class StepInfo extends StatelessWidget {
   final IconData icon;
   final String text;
 
-  const StepInfo({required this.icon, required this.text, Key? key}) : super(key: key);
+  const StepInfo({required this.icon, required this.text, super.key});
 
   @override
   Widget build(BuildContext context) {

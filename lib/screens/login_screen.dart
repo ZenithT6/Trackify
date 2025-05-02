@@ -4,7 +4,6 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:trackify/screens/home_screen.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
-import '../widgets/custom_textfield.dart';
 import '../widgets/custom_button.dart';
 import '../utils/validators.dart';
 

@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 class HealthScoreCard extends StatelessWidget {
   final double scorePercent;
 
-  const HealthScoreCard({Key? key, required this.scorePercent}) : super(key: key);
+  const HealthScoreCard({super.key, required this.scorePercent});
 
   @override
   Widget build(BuildContext context) {
@@ -13,7 +13,7 @@ class HealthScoreCard extends StatelessWidget {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 4,
-      shadowColor: Colors.grey.withOpacity(0.2),
+      shadowColor: Colors.grey.withValues(alpha: 0.2),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Row(

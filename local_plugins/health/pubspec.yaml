@@ -1,0 +1,13 @@
+name: health
+description: A mock local health plugin.
+version: 1.0.0
+
+environment:
+  sdk: ">=2.17.0 <4.0.0"
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: cachet.plugins.health
+        pluginClass: HealthPlugin

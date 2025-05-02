@@ -1,310 +1,207 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'package:percent_indicator/circular_percent_indicator.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-void main() => runApp(const HeartRateApp());
+import '../widgets/heart_rate_pulse.dart';
+import '../widgets/mini_heart_chart.dart';
+import '../widgets/heart_rate_zone_chart.dart';
+import '../widgets/weekly_heart_chart.dart';
+import '../widgets/heart_insight_card.dart';
+import '../services/heart_rate_history_service.dart';
+import '../services/health_service.dart';
 
-class HeartRateApp extends StatelessWidget {
-  const HeartRateApp({Key? key}) : super(key: key);
+class HeartRateScreen extends StatefulWidget {
+  const HeartRateScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: const HeartRateScreen(),
-    );
-  }
+  State<HeartRateScreen> createState() => _HeartRateScreenState();
 }
 
-class HeartRateScreen extends StatelessWidget {
-  const HeartRateScreen({Key? key}) : super(key: key);
+class _HeartRateScreenState extends State<HeartRateScreen>
+    with WidgetsBindingObserver {
+  int bpm = 75;
+  List<int> trend = [];
+  List<int> weeklyBPM = List.filled(7, 0);
 
-  final List<double> heartRates = const [110, 78, 90, 136, 70, 95, 85];
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _fetchLiveHeartRate().then((_) => _loadWeeklyBPM());
+  }
+
+  /// ✅ Fetch and save BPM from Health plugin
+  Future<void> _fetchLiveHeartRate() async {
+    await HealthService.fetchAndSaveHeartRate();
+    final todayBPM = await HeartRateHistoryService.getTodayBPM();
+
+    setState(() {
+      bpm = todayBPM;
+      trend = List.filled(20, todayBPM); // Replace with real trend if available
+    });
+  }
+
+  /// ✅ Load historical BPM for weekly chart
+  Future<void> _loadWeeklyBPM() async {
+    final history = await HeartRateHistoryService.getBPMHistory();
+    final now = DateTime.now();
+    Map<int, int> bpmByWeekday = {for (int i = 0; i < 7; i++) i: 0};
+
+    for (int i = 0; i < 7; i++) {
+      final date = now.subtract(Duration(days: i));
+      final key = '${date.year}-${date.month}-${date.day}';
+      final weekdayIndex = date.weekday % 7;
+      bpmByWeekday[weekdayIndex] = history[key] ?? 0;
+    }
+
+    final todayIndex = now.weekday % 7;
+    bpmByWeekday[todayIndex] = bpm;
+
+    setState(() {
+      weeklyBPM = List.generate(7, (i) => bpmByWeekday[i] ?? 0);
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _fetchLiveHeartRate().then((_) => _loadWeeklyBPM());
+    }
+  }
+
+  String _getStatus(int bpm) {
+    if (bpm < 65) return "Resting";
+    if (bpm < 85) return "Normal";
+    return "Elevated";
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case "Resting":
+        return Colors.green;
+      case "Normal":
+        return Colors.orange;
+      default:
+        return Colors.redAccent;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final status = _getStatus(bpm);
+    final color = _getStatusColor(status);
+
+    final avg = trend.isNotEmpty
+        ? (trend.reduce((a, b) => a + b) ~/ trend.length)
+        : 0;
+
+    final maxBPM = trend.isNotEmpty ? trend.reduce(max) : 0;
+    final minBPM = trend.isNotEmpty ? trend.reduce(min) : 0;
+
     return Scaffold(
-      backgroundColor: Colors.cyan[50],
+      backgroundColor: const Color(0xFFF0F9FF),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          "Heart Rate",
+          style: GoogleFonts.poppins(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        ),
+        centerTitle: true,
+      ),
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 5,
-                            offset: const Offset(2, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(Icons.arrow_back, size: 20),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  const Text("Heart Rate", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            // ECG Line
-            SizedBox(
-              height: 60,
-              child: CustomPaint(
-                painter: ECGPainter(),
-                size: const Size(double.infinity, 60),
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            // Multi-Layer Circular Indicator
-            SizedBox(
-              width: 180,
-              height: 180,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  CircularPercentIndicator(
-                    radius: 90.0,
-                    lineWidth: 14.0,
-                    percent: 1.0,
-                    progressColor: Colors.red.shade100,
-                    backgroundColor: Colors.transparent,
-                  ),
-                  CircularPercentIndicator(
-                    radius: 70.0,
-                    lineWidth: 10.0,
-                    percent: 0.25,
-                    progressColor: Colors.grey.shade300,
-                    backgroundColor: Colors.transparent,
-                  ),
-                  CircularPercentIndicator(
-                    radius: 60.0,
-                    lineWidth: 12.0,
-                    percent: 0.78,
-                    progressColor: Colors.red,
-                    backgroundColor: Colors.transparent,
-                    circularStrokeCap: CircularStrokeCap.round,
-                    center: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Text("78", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-                        Text("BPM", style: TextStyle(fontSize: 14)),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.favorite, color: Colors.red, size: 14),
-                            SizedBox(width: 4),
-                            Text("Normal", style: TextStyle(color: Colors.green, fontSize: 14)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 24.0),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(color: Colors.grey.withOpacity(0.4), blurRadius: 5, offset: const Offset(2, 2)),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Text("Week", style: TextStyle(color: Colors.white)),
-                      Icon(Icons.keyboard_arrow_down, color: Colors.white),
-                    ],
+        child: RefreshIndicator(
+          onRefresh: () async {
+            await _fetchLiveHeartRate();
+            await _loadWeeklyBPM();
+          },
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+            children: [
+              HeartRatePulse(bpm: bpm),
+              const SizedBox(height: 20),
+              Center(
+                child: Text(
+                  status,
+                  style: GoogleFonts.poppins(
+                    color: color,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-            ),
-
-            const SizedBox(height: 10),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: SizedBox(
-                height: 180,
-                child: BarChart(
-                  BarChartData(
-                    borderData: FlBorderData(show: false),
-                    titlesData: FlTitlesData(
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          getTitlesWidget: (value, _) {
-                            const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-                            return Padding(
-                              padding: EdgeInsets.only(top: 6.0),
-                              child: Text(days[value.toInt()], style: TextStyle(fontSize: 12)),
-                            );
-                          },
-                        ),
-                      ),
-                      leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true)),
-                      rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    ),
-                    barGroups: heartRates
-                        .asMap()
-                        .entries
-                        .map((entry) => BarChartGroupData(
-                      x: entry.key,
-                      barRods: [
-                        BarChartRodData(
-                          toY: entry.value,
-                          width: 16,
-                          borderRadius: BorderRadius.circular(10),
-                          color: Colors.redAccent,
-                        )
-                      ],
-                    ))
-                        .toList(),
-                  ),
+              const SizedBox(height: 30),
+              const Text("Last 20 Readings", style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              MiniHeartChart(data: trend),
+              const SizedBox(height: 30),
+              HeartRateZoneChart(
+                zoneData: {
+                  "Resting": 35.0,
+                  "Normal": 50.0,
+                  "Elevated": 15.0,
+                },
+              ),
+              const SizedBox(height: 30),
+              HeartInsightCard(avgBPM: avg),
+              const SizedBox(height: 30),
+              const Text("Weekly Avg BPM", style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 220,
+                child: WeeklyHeartChart(
+                  weeklyBPM: weeklyBPM,
+                  todayBPM: bpm,
                 ),
               ),
-            ),
-
-            const SizedBox(height: 20),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildPill("Min: 58 BPM", Colors.lightGreen.shade200, Icons.trending_down),
-                _buildPill("Max: 136 BPM", Colors.red.shade200, Icons.trending_up),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _buildPill("Avg: 78 BPM", Colors.green.shade200, Icons.show_chart),
-
-            const Spacer(),
-
-            // Updated Bottom Navigation to match HomeScreen
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: Stack(
-                alignment: Alignment.center,
+              const SizedBox(height: 30),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  Container(
-                    height: 70,
-                    decoration: BoxDecoration(
-                      color: Colors.pinkAccent,
-                      borderRadius: BorderRadius.circular(40),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 10,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: const [
-                        Icon(Icons.home, color: Colors.white),
-                        Icon(Icons.calendar_today, color: Colors.white),
-                        SizedBox(width: 60),
-                        Icon(Icons.bar_chart, color: Colors.white),
-                        Icon(Icons.person, color: Colors.white),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    child: Container(
-                      width: 60,
-                      height: 60,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white,
-                        boxShadow: [
-                          BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4)),
-                        ],
-                      ),
-                      child: Icon(Icons.add, color: Colors.pinkAccent, size: 30),
-                    ),
-                  )
+                  _statTile("Avg BPM", avg.toString(), FontAwesomeIcons.heart),
+                  _statTile("Max BPM", maxBPM.toString(), FontAwesomeIcons.arrowUp),
+                  _statTile("Min BPM", minBPM.toString(), FontAwesomeIcons.arrowDown),
                 ],
               ),
-            )
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildPill(String text, Color color, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withAlpha((0.3 * 255).toInt()),
-            blurRadius: 5,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16),
-          const SizedBox(width: 6),
-          Text(text, style: const TextStyle(fontWeight: FontWeight.bold)),
-        ],
-      ),
+  Widget _statTile(String label, String value, IconData icon) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18, color: Colors.deepPurple),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 18),
+          textAlign: TextAlign.center,
+        ),
+        Text(
+          label,
+          style: GoogleFonts.poppins(fontSize: 12, color: Colors.black54),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
-}
-
-class ECGPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.red
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke;
-
-    final path = Path();
-    path.moveTo(0, size.height / 2);
-
-    for (double x = 0; x < size.width; x += 30) {
-      path.relativeLineTo(10, 0);
-      path.relativeLineTo(5, -15);
-      path.relativeLineTo(10, 30);
-      path.relativeLineTo(5, -15);
-      path.relativeLineTo(10, 0);
-    }
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }

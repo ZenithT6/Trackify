@@ -41,7 +41,7 @@ class Validators {
     }
 
     if (errors.isNotEmpty) {
-      return 'Password must contain:\n' + errors.join('\n');
+      return 'Password must contain:\n${errors.join('\n')}';
     }
 
     return null;

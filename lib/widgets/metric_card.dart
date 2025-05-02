@@ -12,15 +12,15 @@ class MetricCard extends StatelessWidget {
     required this.value,
     required this.icon,
     required this.color,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 3,
-      shadowColor: Colors.grey.withOpacity(0.2),
+      shadowColor: Colors.grey.withValues(alpha: 0.2),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
