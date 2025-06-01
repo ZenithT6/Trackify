@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import '../widgets/custom_textfield.dart';
 import '../widgets/custom_button.dart';
 import '../utils/validators.dart';
+import 'login_screen.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -20,12 +22,54 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _confirmPasswordController = TextEditingController();
   final _phoneController = TextEditingController();
 
-  void _handleSignUp() {
+  Future<void> _handleSignUp() async {
     if (_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Account created successfully!")),
-      );
-      // You can add navigation or API call here
+      final url = Uri.parse('http://172.20.10.11:5000/registeruser');
+      final Map<String, dynamic> payload = {
+        "email": _emailController.text.trim(),
+        "password": _passwordController.text.trim(),
+        "name": _nameController.text.trim(),
+        "phoneno": _phoneController.text.trim(),
+      };
+
+      try {
+        final response = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode(payload),
+        );
+
+        if (response.statusCode == 200) {
+          if (!mounted) return;
+
+          // ✅ Clear the form
+          _nameController.clear();
+          _emailController.clear();
+          _passwordController.clear();
+          _confirmPasswordController.clear();
+          _phoneController.clear();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Account created successfully!")),
+          );
+
+          // ✅ Navigate to login screen after short delay
+          Future.delayed(const Duration(milliseconds: 500), () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+            );
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Error: ${response.body}")),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to connect to server: $e")),
+        );
+      }
     }
   }
 
@@ -77,21 +121,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   const SizedBox(height: 20),
                   TextFormField(
                     controller: _nameController,
-                    decoration: const InputDecoration(labelText: "Full Name", labelStyle: TextStyle(color: Colors.white)),
+                    decoration: const InputDecoration(
+                        labelText: "Full Name",
+                        labelStyle: TextStyle(color: Colors.white)),
                     style: const TextStyle(color: Colors.white),
                     validator: Validators.validateName,
                   ),
                   const SizedBox(height: 10),
                   TextFormField(
                     controller: _emailController,
-                    decoration: const InputDecoration(labelText: "Email", labelStyle: TextStyle(color: Colors.white)),
+                    decoration: const InputDecoration(
+                        labelText: "Email",
+                        labelStyle: TextStyle(color: Colors.white)),
                     style: const TextStyle(color: Colors.white),
                     validator: Validators.validateEmail,
                   ),
                   const SizedBox(height: 10),
                   TextFormField(
                     controller: _passwordController,
-                    decoration: const InputDecoration(labelText: "Password", labelStyle: TextStyle(color: Colors.white)),
+                    decoration: const InputDecoration(
+                        labelText: "Password",
+                        labelStyle: TextStyle(color: Colors.white)),
                     style: const TextStyle(color: Colors.white),
                     obscureText: true,
                     validator: Validators.validatePassword,
@@ -99,15 +149,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   const SizedBox(height: 10),
                   TextFormField(
                     controller: _confirmPasswordController,
-                    decoration: const InputDecoration(labelText: "Confirm Password", labelStyle: TextStyle(color: Colors.white)),
+                    decoration: const InputDecoration(
+                        labelText: "Confirm Password",
+                        labelStyle: TextStyle(color: Colors.white)),
                     style: const TextStyle(color: Colors.white),
                     obscureText: true,
-                    validator: (value) => Validators.validateConfirmPassword(value, _passwordController.text),
+                    validator: (value) => Validators.validateConfirmPassword(
+                        value, _passwordController.text),
                   ),
                   const SizedBox(height: 10),
                   TextFormField(
                     controller: _phoneController,
-                    decoration: const InputDecoration(labelText: "Phone No", labelStyle: TextStyle(color: Colors.white)),
+                    decoration: const InputDecoration(
+                        labelText: "Phone No",
+                        labelStyle: TextStyle(color: Colors.white)),
                     style: const TextStyle(color: Colors.white),
                     keyboardType: TextInputType.phone,
                     validator: Validators.validatePhone,
